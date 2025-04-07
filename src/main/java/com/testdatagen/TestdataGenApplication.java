@@ -1,16 +1,44 @@
 package com.testdatagen;
+
+import co.elastic.apm.attach.ElasticApmAttacher;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.slf4j.Logger;
+import org.apache.http.client.methods.*;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.http.ssl.TrustStrategy;
+import org.apache.http.util.EntityUtils;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.github.javafaker.Faker;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import javax.net.ssl.*;
+import java.io.*;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.sql.*;
+import java.time.Year;
 import java.util.*;
+import java.util.logging.Logger;
+
+import static java.lang.Integer.parseInt;
 
 @SpringBootApplication
 @RestController
@@ -18,207 +46,395 @@ import java.util.*;
 public class TestdataGenApplication {
 
 	public static void main(String[] args) {
+		ElasticApmAttacher.attach();
 		SpringApplication.run(TestdataGenApplication.class, args);
 	}
 
 	ColorLogger colorLogger = new ColorLogger();
 
-	@GetMapping(value = "healthcheck")
-	public ResponseEntity<String> healthcheck() {
+	@Configuration
+	public class WebMvc implements WebMvcConfigurer {
+
+		@Override
+		public void addCorsMappings(CorsRegistry registry) {
+			registry.addMapping("/**")
+					.allowedMethods("*")
+					.allowedOrigins("*");
+		}
+	}
+	@RequestMapping(value = "getInskrivning")
+	public ResponseEntity<String> getInskrivning(@RequestParam String identitetsbeteckning)
+	{
 		HttpHeaders headers = new HttpHeaders();
 		headers.add(HttpHeaders.CACHE_CONTROL, "no-cache");
-		headers.add(HttpHeaders.CONTENT_TYPE, "text/plain; charset=UTF-8");
-		headers.add(HttpHeaders.CONTENT_ENCODING, "UTF-8");
+		headers.add(HttpHeaders.CONTENT_TYPE, "text/csv");
+		headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "*");
+		String svar;
+		try {
+			svar = executeGetData("https://ipf-test.arbetsformedlingen.se/ais-f-inskrivning/v2/arbetssokande/"+ identitetsbeteckning);
+		} catch (IOException e) {
+			colorLogger.logError(e.toString());
+			throw new RuntimeException(e);
+		} catch (NoSuchAlgorithmException e) {
+			colorLogger.logError(e.toString());
+			throw new RuntimeException(e);
+		} catch (KeyStoreException e) {
+			colorLogger.logError(e.toString());
+			throw new RuntimeException(e);
+		}
+
 		return ResponseEntity.ok()
 				.headers(headers)
-				.body("{\"status\":\"ok\",\"service\":\"API Health Check\"}");
+				.body(svar);
 	}
-
-	@GetMapping(value = "generateTestdataCsv")
-	public ResponseEntity<String> RandomPerson(
-			@RequestParam(required = true) String count,
-			@RequestParam(required = false, defaultValue = "18") String minAge,
-			@RequestParam(required = false, defaultValue = "65") String maxAge
-	) {
-
-		int parsedCount;
-		int parsedMinAge;
-		int parsedMaxAge;
-
-		// Validate count (should be an integer)
-		try {
-			parsedCount = Integer.parseInt(count);
-		} catch (NumberFormatException e) {
-			return ResponseEntity.badRequest().body("Invalid count value, it must be an integer.");
-		}
-
-		// Validate minAge (should be an integer and within 1 to 150)
-		try {
-			parsedMinAge = Integer.parseInt(minAge);
-			if (parsedMinAge < 1 || parsedMinAge > 150) {
-				return ResponseEntity.badRequest().body("minAge must be between 1 and 150.");
-			}
-		} catch (NumberFormatException e) {
-			return ResponseEntity.badRequest().body("Invalid minAge value, it must be an integer.");
-		}
-		// Validate maxAge (should be an integer and within 1 to 160)
-		try {
-			parsedMaxAge = Integer.parseInt(maxAge);
-			if (parsedMaxAge < 1 || parsedMaxAge > 160) {
-				return ResponseEntity.badRequest().body("maxAge must be between 1 and 160.");
-			}
-		} catch (NumberFormatException e) {
-			return ResponseEntity.badRequest().body("Invalid maxAge value, it must be an integer.");
-		}
-
-		// Ensure that maxAge is greater than or equal to minAge
-		if (parsedMaxAge < parsedMinAge) {
-			return ResponseEntity.badRequest().body("maxAge cannot be less than minAge.");
-		}
-		// Set up the response headers
+	@ResponseBody
+	@RequestMapping("/inskrivning")
+	public ResponseEntity<String> postBody(@RequestBody String body) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add(HttpHeaders.CACHE_CONTROL, "no-cache");
-		headers.add(HttpHeaders.CONTENT_TYPE, "text/csv; charset=UTF-8");
-		headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=RandomPerson.csv");
-		headers.add(HttpHeaders.CONTENT_ENCODING, "UTF-8");
 		headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "*");
-		// Initialize variables for generation
-		String gen = "";
-		String lowerCharacters = "abcdefghijklmnopqrstuvwxyz";
-		String numberCharacters = "0123456789";
-		gen = "\uFEFF" + "shortid1;shortid2;longid1;longid2;birthday;firstname;lastname;address;postaladress;zip;phone;mobilphone;jobposition;jobtitel;email;uuid\n";
-		Faker faker = new Faker(new Locale("sv"));
+		headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, "*");
 
-		// Generate and log personal numbers with all variants
-		List<List<String>> personalNumbers = generateUniqueSwedishPersonalNumbers(parsedMinAge, parsedMaxAge, parsedCount);
-		// Log each personal number with all its variants on the same row
-		for (List<String> personalNumberVariants : personalNumbers) {
-			// Print all variants of the current personal number on one row
-			String id = "";
-			for (String variant : personalNumberVariants) {
-				//System.out.print(variant + ";");  // Print variants in one row
-				id=id + variant + ";";
+		String svar;
+		try {
+			try {
+				svar = executePostData(body, "https://ipf-test.arbetsformedlingen.se/ais-f-inskrivning/v2/inskrivning");
+			} catch (NoSuchAlgorithmException e) {
+				throw new RuntimeException(e);
+			} catch (KeyStoreException e) {
+				throw new RuntimeException(e);
 			}
-			// Generate a random email
-			String mail = RandomStringUtils.random(6, lowerCharacters) +
-					RandomStringUtils.random(6, numberCharacters) + "@" +
-					RandomStringUtils.random(6, lowerCharacters) +
-					RandomStringUtils.random(6, numberCharacters) + ".com";
 
-			// Append the generated data to the result
-			gen += id +
-					faker.name().firstName() + ";" +
-					faker.name().lastName() + ";" +
-					faker.address().streetAddress() + ";" +
-					faker.address().state() + ";" +
-					faker.address().zipCode() + ";" +
-					faker.phoneNumber().phoneNumber().replace("-", "") + ";" +
-					faker.phoneNumber().cellPhone().replace("-", "") + ";" +
-					faker.job().position() + ";" +
-					faker.job().title() + ";" +
-					mail + ";" +
-					UUID.randomUUID().toString() + "\n";
+		} catch (IOException e) {
+			colorLogger.logError(e.toString());
+			throw new RuntimeException(e);
 		}
+		return ResponseEntity.ok()
+				.headers(headers)
+				.body(svar);
+	}
+
+
+	@RequestMapping(value = "RandomUUID")
+	public ResponseEntity<String> RandomUUID(@RequestParam String antal)
+	{
+		if (antal.matches("[0-9]+")){
+
+		} else {
+			return ResponseEntity.status(400)
+					.body("parameter must be an integer");
+		}
+
+		if (parseInt(antal) > 50000) {
+			return ResponseEntity.status(400)
+					.body("parameter limit 50000");
+		}
+
+		long start = System.currentTimeMillis();
+
+		colorLogger.logInfo("Creating RandomUUID: " + antal);
+
+		HttpHeaders headers = new HttpHeaders();
+		headers.add(HttpHeaders.CACHE_CONTROL, "no-cache");
+		headers.add(HttpHeaders.CONTENT_TYPE, "text/csv");
+		headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "*");
+
+		String gen="";
+		for (int i = 0; i < parseInt(antal); i++) {
+			gen = UUID.randomUUID().toString() + "\n" + gen ;
+		}
+		long finish = System.currentTimeMillis();
+		long timeElapsed = finish - start;
+		colorLogger.logInfo("RandomUUID exec time: " + timeElapsed +"ms");
 
 		return ResponseEntity.ok()
 				.headers(headers)
 				.body(gen);
 	}
 
-	// Generate multiple unique personal numbers, each with all four variants
-	public static List<List<String>> generateUniqueSwedishPersonalNumbers(int minAge, int maxAge, int count) {
-		Set<String> personalNumbersSet = new HashSet<>();
-		List<List<String>> personalNumbersList = new ArrayList<>();
-		Random random = new Random();
+	@RequestMapping(value = "RandomPersonJson")
+	public ResponseEntity<String> RandomPersonJson()
+	{
+		HttpHeaders headers = new HttpHeaders();
+		headers.add(HttpHeaders.CACHE_CONTROL, "no-cache");
+		headers.add(HttpHeaders.CONTENT_TYPE, "application/json; charset=UTF-8");
+		headers.add(HttpHeaders.CONTENT_ENCODING, "UTF-8");
+		headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "*");
 
-		// Generate personal numbers until we have the desired count
-		while (personalNumbersList.size() < count) {
-			List<String> personalNumberVariants = generateSwedishPersonalNumber(minAge, maxAge, random);
-			String personalNumberWithVariants = personalNumberVariants.get(0); // Use the first variant to check for uniqueness
-			if (personalNumbersSet.add(personalNumberWithVariants)) {
-				personalNumbersList.add(personalNumberVariants);
+		Random randomizer = new Random();
+		InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream("static/postnummer.csv");
+		List<String> lines = null;
+		lines = IOUtils.readLines(inputStream);
+		String random = lines.get(randomizer.nextInt(lines.size()));
+		String[] arrOfStr = random.split(";");
+
+		String from = String.valueOf(Year.now().getValue()-70);
+		String to = String.valueOf(Year.now().getValue()-17);
+		String gen = null;
+		String lowerCharacters = "abcdefghijklmnopqrstvxyz";
+		String numberCharacters = "0123456789";
+		String mail = null;
+		String Personnummer = null;
+		String KortPersonnummer = null;
+		int antal = 1;
+
+		Faker faker = new Faker((new Locale("sv")));
+
+		for (int i = 0; i < antal; i++) {
+			Personnummer = faker.idNumber().validSvSeSsn();
+			KortPersonnummer = Personnummer;
+
+			if (Personnummer.contains("+")) {
+				Personnummer = Personnummer.replace("+", "");
+				Personnummer = "20" + Personnummer;
+			}
+			if (Personnummer.contains("-")) {
+				Personnummer = Personnummer.replace("-","");
+				Personnummer="19" + Personnummer;
+			}
+			mail = RandomStringUtils.random(6, lowerCharacters) + RandomStringUtils.random(6, numberCharacters) + "@" + RandomStringUtils.random(6, lowerCharacters) + RandomStringUtils.random(6, numberCharacters) + ".com";
+
+			if (parseInt(Personnummer.substring(0,4)) > parseInt(from) && parseInt(Personnummer.substring(0,4)) < parseInt(to) ){
+
+				gen = "{\"Personnummer\":\""+ KortPersonnummer + "\",\"longPersonnummer\":\""+ Personnummer + "\",\"namn\":\""
+						+ faker.name().firstName() + "\",\"efterNamn\":\""
+						+ faker.name().lastName() +  "\",\"Address\":\""
+						+ faker.address().streetAddress() + "\",\"postAdress\":\""+ arrOfStr[1] + "\",\"zip\":\""
+						+ arrOfStr[0].replace(" ", "") + "\",\"telefon\":\""
+						+ faker.phoneNumber().phoneNumber().replace("-", "") +"\",\"mobil\":\""
+						+ faker.phoneNumber().cellPhone().replace("-", "") + "\",\"jobPosition\":\""
+						+ faker.job().position()  + "\",\"jobTitel\":\""
+						+ faker.job().title() +"\",\"email\":\""+ mail  + "," + "\",\"kommun\":\"" +arrOfStr[2] +"\"}";
+			}
+			else {
+				i--;
+				continue;
 			}
 		}
+		Gson gson = new GsonBuilder().setPrettyPrinting().create();
+		JsonParser jp = new JsonParser();
+		JsonElement je = jp.parse(gen);
+		String prettyJsonString = gson.toJson(je);
 
-		return personalNumbersList;
+		return ResponseEntity.ok()
+				.headers(headers)
+				.body(prettyJsonString);
 	}
 
-	// Generate all four variants of a Swedish personal number (short and long, with and without dashes)
-	public static List<String> generateSwedishPersonalNumber(int minAge, int maxAge, Random random) {
-		LocalDate today = LocalDate.now();
+	@RequestMapping(value = "RandomPerson")
+	public ResponseEntity<String> RandomPerson(@RequestParam(required=true) String antal)
+	{
+		if (antal.matches("[0-9]+")){
 
-		// Randomly select an age within the range
-		int age = minAge + random.nextInt(maxAge - minAge + 1);
-
-		// Calculate birth year
-		int birthYear = today.getYear() - age;
-
-		// Randomly select a month and day
-		int month = random.nextInt(1, 13);
-		int day = getRandomDayForMonth(birthYear, month, random);
-
-		// Format birth date (short and long formats)
-		LocalDate birthDate = LocalDate.of(birthYear, month, day);
-		String birthDateShort = birthDate.format(DateTimeFormatter.ofPattern("yyMMdd"));
-		String birthDateLong = birthDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-
-		// Randomly generate a 3-digit individual number
-		int individualNumber = random.nextInt(0, 1000);
-		String individualNumberStr = String.format("%03d", individualNumber);
-
-		// Calculate the checksum
-		String partialNumber = birthDateShort.substring(0, 6) + individualNumberStr;
-		int checksum = calculateModulus10Checksum(partialNumber);
-
-		// Generate all four variants
-		List<String> variants = new ArrayList<>();
-
-		// Short format (with and without dash)
-		variants.add(birthDateShort + "-" + individualNumberStr + checksum); // Short format with dash
-		variants.add(birthDateShort + individualNumberStr + checksum); // Short format without dash
-
-		// Long format (with and without dash)
-		variants.add(birthDateLong + "-" + individualNumberStr + checksum); // Long format with dash
-		variants.add(birthDateLong + individualNumberStr + checksum); // Long format without dash
-		variants.add(birthDate.toString()); // Long format without dash
-
-		return variants;
-	}
-
-	// Randomly select a day for the given month and year
-	public static int getRandomDayForMonth(int year, int month, Random random) {
-		LocalDate date = LocalDate.of(year, month, 1);
-		return random.nextInt(1, date.lengthOfMonth() + 1);
-	}
-
-	// Calculate the checksum using the modulus-10 method
-	public static int calculateModulus10Checksum(String number) {
-		int sum = 0;
-		int[] weights = {2, 1}; // Alternate between weights 2 and 1
-
-		for (int i = 0; i < number.length(); i++) {
-			int digit = Character.getNumericValue(number.charAt(i));
-			int product = digit * weights[i % 2];
-			sum += product / 10 + product % 10;
+		} else {
+			return ResponseEntity.status(400)
+					.body("parameter must be an integer");
 		}
 
-		int checksum = (10 - (sum % 10)) % 10; // If remainder is 0, set checksum to 0
-		return checksum;
+		if (parseInt(antal) > 25000) {
+			return ResponseEntity.status(400)
+					.body("parameter limit 25000");
+		}
+
+		String from = String.valueOf(Year.now().getValue()-70);
+		String to = String.valueOf(Year.now().getValue()-17);
+
+		long start = System.currentTimeMillis();
+		HttpHeaders headers = new HttpHeaders();
+		headers.add(HttpHeaders.CACHE_CONTROL, "no-cache");
+		headers.add(HttpHeaders.CONTENT_TYPE, "text/csv; charset=UTF-8");
+		headers.add(HttpHeaders.CONTENT_DISPOSITION, "RandomPerson.csv");
+		headers.add(HttpHeaders.CONTENT_ENCODING, "UTF-8");
+		headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "*");
+		String gen = null;
+		String lowerCharacters = "abcdefghijklmnopqrstvxyz";
+		String numberCharacters = "0123456789";
+		String mail = null;
+
+		gen = "\uFEFF" + "Personnummer;longPersonnummer;namn;efterNamn;Address;postAdress;zip;telefon;mobil;jobPosition;jobTitel;email\n";
+		//Faker faker = new Faker(new Locale("sv"));
+		Faker faker = new Faker((new Locale("sv")));
+
+		String Personnummer = null;
+		String KortPersonnummer = null;
+
+		colorLogger.logInfo("Creating RandomPerson: " + antal + " from year: " + from + " to year: " + to );
+
+		for (int i = 0; i < parseInt(antal); i++) {
+			Personnummer = faker.idNumber().validSvSeSsn();
+			KortPersonnummer = Personnummer;
+
+			if (Personnummer.contains("+")) {
+				Personnummer = Personnummer.replace("+", "");
+				Personnummer = "20" + Personnummer;
+			}
+			if (Personnummer.contains("-")) {
+				Personnummer = Personnummer.replace("-","");
+				Personnummer="19" + Personnummer;
+			}
+
+			if (parseInt(Personnummer.substring(0,4)) > parseInt(from) && parseInt(Personnummer.substring(0,4)) < parseInt(to) ){
+				mail = RandomStringUtils.random(6, lowerCharacters) + RandomStringUtils.random(6, numberCharacters) + "@" + RandomStringUtils.random(6, lowerCharacters) + RandomStringUtils.random(6, numberCharacters) + ".com";
+
+				gen = gen + KortPersonnummer + ";" + Personnummer + ";" + faker.name().firstName() + ";" + faker.name().lastName() + ";" + faker.address().streetAddress()
+						+ ";" + faker.address().state() + ";" + faker.address().zipCode()
+						+ ";" + faker.phoneNumber().phoneNumber().replace("-", "") + ";" + faker.phoneNumber().cellPhone().replace("-", "") + ";" + faker.job().position() +
+						";" + faker.job().title() + ";" + mail
+						//faker.name().username().replace("å","a").replace("ö","o").replace("ä","a") + "@gmail.com"
+						+ "\n";
+			}
+			else {
+				i--;
+				continue;
+			}
+		}
+		long finish = System.currentTimeMillis();
+		long timeElapsed = finish - start;
+		colorLogger.logInfo("RandomPerson exec time: " + timeElapsed + "ms");
+		return ResponseEntity.ok()
+				.headers(headers)
+				.body(gen);
+	}
+	@PostMapping("/SQL")
+	public String SQL(@RequestBody String jsonString) throws JSONException, IOException, SQLException {
+
+		colorLogger.logInfo("\n + json string:\n" + jsonString);
+		jsonString= jsonString.replace("'{","{");
+		jsonString= jsonString.replace("}'","}");
+		JSONObject json = new JSONObject(jsonString);
+		String jdbc, sql, user, password;
+		jdbc = json.get("jdbc").toString();
+		sql = json.get("sql").toString();
+		user = json.get("user").toString();
+		password = json.get("password").toString();
+		String result = OraSQL(sql,jdbc,user,password);
+		colorLogger.logInfo("\n result: \n"+ result);
+		return result;
+	}
+
+	public String OraSQL(String query, String jdbc, String user, String password) throws SQLException {
+
+		Connection conn=DriverManager.getConnection(
+				jdbc,user,password);
+
+		colorLogger.logInfo("\nData source created: \n" + jdbc);
+		colorLogger.logInfo("\nRunning query: \n" + query);
+		Statement st = conn.createStatement();
+		ResultSet rs = st.executeQuery(query);
+		ResultSetMetaData rsmd;
+		rsmd = rs.getMetaData();
+		String Columns = null;
+		int i = 1;
+		while (i <= rsmd.getColumnCount()) {
+			if (i==1) {
+				Columns = rsmd.getColumnName(i) + ";";
+			} else {
+				Columns = Columns + rsmd.getColumnName(i) + ";";
+			}
+			i++;
+		}
+		String Values = null;
+		int j = 1;
+		while (rs.next()) {
+			j=1;
+			while (j <= rsmd.getColumnCount()) {
+				if (Values == null) {
+					Values = rs.getString(j)+ ";";
+				}else {
+					Values = Values + rs.getString(j)+ ";";
+				}
+				j++;
+			}
+			Values = Values + "\n";
+		}
+		conn.close();
+		return Columns + "\n" + Values;
+	}
+
+	public String executePostData(String postJsonData, String UrlString) throws IOException, NoSuchAlgorithmException, KeyStoreException {
+		SSLContext sslContext = null;
+		try {
+			sslContext = new SSLContextBuilder()
+					.loadTrustMaterial(null, (TrustStrategy) (arg0, arg1) -> true).build();
+		} catch (KeyManagementException e) {
+			throw new RuntimeException(e);
+		}
+
+		CloseableHttpClient httpClient = HttpClients
+				.custom()
+				.setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+				.setSSLContext(sslContext)
+				.build();
+
+		HttpUriRequest request = RequestBuilder.post()
+				.setUri(UrlString)
+				.setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+				.setHeader("client_id", "76f2f68dbf754932b7e2ec79bb282d37")
+				.setHeader("client_secret", "0e57888BdE4f434eBF850518C3FB5397")
+				.setHeader("AF-TrackingId", "d93035e0-36ac-482e-9297-285d74015ae4")
+				.setHeader("AF-SystemId", "testdatagen")
+				.setEntity(new StringEntity(postJsonData))
+				.build();
+
+		//System.out.println(httpClient.execute(request));
+		String result = "";
+
+		CloseableHttpResponse response = httpClient.execute(request);
+		result = EntityUtils.toString(response.getEntity());
+		colorLogger.logInfo(result);
+		return result;
+	}
+	public String executeGetData(String UrlString) throws IOException, NoSuchAlgorithmException, KeyStoreException {
+		SSLContext sslContext = null;
+		try {
+			sslContext = new SSLContextBuilder()
+					.loadTrustMaterial(null, (TrustStrategy) (arg0, arg1) -> true).build();
+		} catch (KeyManagementException e) {
+			throw new RuntimeException(e);
+		}
+
+		CloseableHttpClient httpClient = HttpClients
+				.custom()
+				.setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+				.setSSLContext(sslContext)
+				.build();
+
+		HttpUriRequest request = RequestBuilder.get()
+				.setUri(UrlString)
+				.setHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+				.setHeader("client_id", "76f2f68dbf754932b7e2ec79bb282d37")
+				.setHeader("client_secret", "0e57888BdE4f434eBF850518C3FB5397")
+				.setHeader("AF-TrackingId", "d93035e0-36ac-482e-9297-285d74015ae4")
+				.setHeader("AF-SystemId", "testdatagen")
+				.build();
+
+		//System.out.println(httpClient.execute(request));
+		String result = "";
+
+		CloseableHttpResponse response = httpClient.execute(request);
+		result = EntityUtils.toString(response.getEntity());
+		colorLogger.logInfo(result);
+		return result;
 	}
 
 	public class ColorLogger {
-		private static final Logger LOGGER = LoggerFactory.getLogger("");
+
+		private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger("");
+
 		public void logDebug(String logging) {
 			LOGGER.debug("\u001B[92m" + logging + "\u001B[0m");
 		}
 		public void logInfo(String logging) {
 			LOGGER.info("\u001B[93m" + logging + "\u001B[0m");
 		}
+
 		public void logError(String logging) {
 			LOGGER.error("\u001B[91m" + logging + "\u001B[0m");
 		}
 	}
-
 }
+
+
+
 
 
