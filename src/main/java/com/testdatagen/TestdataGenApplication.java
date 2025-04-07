@@ -62,6 +62,16 @@ public class TestdataGenApplication {
 					.allowedOrigins("*");
 		}
 	}
+	@GetMapping(value = "healthcheck")
+	public ResponseEntity<String> healthcheck() {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add(HttpHeaders.CACHE_CONTROL, "no-cache");
+		headers.add(HttpHeaders.CONTENT_TYPE, "text/plain; charset=UTF-8");
+		headers.add(HttpHeaders.CONTENT_ENCODING, "UTF-8");
+		return ResponseEntity.ok()
+				.headers(headers)
+				.body("{\"status\":\"ok\",\"service\":\"API Health Check\"}");
+	}
 	@RequestMapping(value = "getInskrivning")
 	public ResponseEntity<String> getInskrivning(@RequestParam String identitetsbeteckning)
 	{
