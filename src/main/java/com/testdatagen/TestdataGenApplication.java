@@ -1,6 +1,9 @@
 package com.testdatagen;
 
 import co.elastic.apm.attach.ElasticApmAttacher;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.ObjectCodec;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
@@ -17,17 +20,22 @@ import org.apache.http.ssl.TrustStrategy;
 import org.apache.http.util.EntityUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.github.javafaker.Faker;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
+import java.sql.*;
+import java.util.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.net.ssl.*;
 import java.io.*;
 import java.security.KeyManagementException;
@@ -36,7 +44,6 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.*;
 import java.time.Year;
 import java.util.*;
-import java.util.logging.Logger;
 
 import static java.lang.Integer.parseInt;
 
@@ -51,6 +58,9 @@ public class TestdataGenApplication {
 	}
 
 	ColorLogger colorLogger = new ColorLogger();
+	private static final String JDBC_URL = "jdbc:oracle:thin:@ldap://afkatalog-acc.arbetsformedlingen.se:389/lap-pttestdb-test,cn=OracleContext,ou=WT,ou=Oracle,o=AF,C=SE";
+	private static final String DB_USER = "pttest";
+	private static final String DB_PASSWORD = "pttest";
 
 	@Configuration
 	public class WebMvc implements WebMvcConfigurer {
@@ -72,6 +82,94 @@ public class TestdataGenApplication {
 				.headers(headers)
 				.body("{\"status\":\"ok\",\"service\":\"API Health Check\"}");
 	}
+
+
+	@GetMapping("/getSyntetiskDataHtml")
+	public String getSyntetiskData(@RequestParam("miljo") String miljo) {
+		String jdbcUrl = "jdbc:oracle:thin:@ldap://afkatalog-acc.arbetsformedlingen.se:389/cn=pttestdb-test,cn=OracleContext,ou=WT,ou=oracle,o=AF,c=SE";
+		String username = "pttest";
+		String password = "pttest";
+
+		StringBuilder htmlResponse = new StringBuilder();
+		htmlResponse.append("""
+        <html>
+        <head>
+            <title>Syntetisk Data</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    background-color: #f4f4f9;
+                    color: #333;
+                    margin: 40px;
+                }
+                h1 {
+                    text-align: center;
+                    color: #2c3e50;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                    background-color: #ffffff;
+                }
+                th, td {
+                    padding: 12px 15px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }
+                th {
+                    background-color: #2c3e50;
+                    color: white;
+                }
+                tr:nth-child(even) {
+                    background-color: #f2f2f2;
+                }
+                tr:hover {
+                    background-color: #e1f5fe;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Syntetisk Data - Miljö: """ + miljo + "</h1>\n" +
+				"<table>\n" +
+				"<tr><th>Personnummer</th><th>Miljö</th><th>Sökande ID</th><th>GUID</th><th>Info</th><th>Tidstämpel</th></tr>");
+
+		try {
+			Connection connection = DriverManager.getConnection(jdbcUrl, username, password);
+			String sql = "SELECT PERSONNUMMER, MILJO, SOKANDEID, GUID, INFO, TIMESTAMP FROM SYNTETISKTDATA WHERE MILJO = ?";
+			PreparedStatement stmt = connection.prepareStatement(sql);
+			stmt.setString(1, miljo);
+
+			ResultSet rs = stmt.executeQuery();
+
+			while (rs.next()) {
+				htmlResponse.append("<tr>")
+						.append("<td>").append(rs.getString("PERSONNUMMER")).append("</td>")
+						.append("<td>").append(rs.getString("MILJO")).append("</td>")
+						.append("<td>").append(rs.getString("SOKANDEID")).append("</td>")
+						.append("<td>").append(rs.getString("GUID")).append("</td>")
+						.append("<td>").append(rs.getString("INFO")).append("</td>")
+						.append("<td>").append(rs.getTimestamp("TIMESTAMP")).append("</td>")
+						.append("</tr>");
+			}
+
+			rs.close();
+			stmt.close();
+			connection.close();
+		} catch (SQLException e) {
+			htmlResponse.append("<tr><td colspan='6' style='color:red;'>Error: ")
+					.append(e.getMessage())
+					.append("</td></tr>");
+		}
+
+		htmlResponse.append("</table></body></html>");
+
+		return htmlResponse.toString();
+	}
+
+
+
 	@RequestMapping(value = "getInskrivning")
 	public ResponseEntity<String> getInskrivning(@RequestParam String identitetsbeteckning)
 	{
@@ -427,9 +525,76 @@ public class TestdataGenApplication {
 		return result;
 	}
 
+	@PostMapping("/insert")
+	public ResponseEntity<String> insertRawJson(@RequestBody String json) {
+
+        String jdbcUrl = "jdbc:oracle:thin:@ldap://afkatalog-acc.arbetsformedlingen.se:389/cn=pttestdb-test,cn=OracleContext,ou=WT,ou=oracle,o=AF,c=SE";
+        String username = "pttest";
+        String password = "pttest";
+
+		ObjectMapper objectMapper = new ObjectMapper();
+		JsonNode node;
+
+		// Parse the incoming JSON safely
+		try {
+			node = objectMapper.readTree(json);  // This is where you were having an issue
+		} catch (JsonProcessingException e) {
+			return ResponseEntity
+					.status(HttpStatus.BAD_REQUEST)
+					.body("Invalid JSON: " + e.getOriginalMessage());
+		}
+        // Extract required fields
+		// Extract required fields
+		String personnummer, miljo;
+		try {
+			personnummer = getRequiredField(node, "personnummer");
+			miljo = getRequiredField(node, "miljo");
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity
+					.status(HttpStatus.BAD_REQUEST)
+					.body("Missing required field: " + e.getMessage());
+		}
+
+        // Extract optional fields
+        String info = node.hasNonNull("info") ? node.get("info").asText() : "Inskriven";
+        int use = node.hasNonNull("use") ? node.get("use").asInt() : 0;
+        String sokandeId = node.hasNonNull("sokandeId") ? node.get("sokandeId").asText() : null;
+        String guid = node.hasNonNull("guid") ? node.get("guid").asText() : null;
+
+        String sql = "INSERT INTO SYNTETISKTDATA (PERSONNUMMER, MILJO, INFO, TIMESTAMP, USE, SOKANDEID, GUID) " +
+                "VALUES (?, ?, ?, SYSTIMESTAMP, ?, ?, ?)";
+
+        // JDBC insert
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, username, password);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, personnummer);
+            stmt.setString(2, miljo);
+            stmt.setString(3, info);
+            stmt.setInt(4, use);
+            stmt.setString(5, sokandeId);
+            stmt.setString(6, guid);
+
+            int rows = stmt.executeUpdate();
+            return ResponseEntity.ok("Inserted " + rows + " row(s)");
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Database error: " + e.getMessage());
+        }
+    }
+
+	private String getRequiredField(JsonNode node, String fieldName) {
+		if (!node.hasNonNull(fieldName)) {
+			throw new IllegalArgumentException(fieldName);
+		}
+		return node.get(fieldName).asText();
+	}
+
 	public class ColorLogger {
 
-		private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger("");
+		private static final Logger LOGGER = LoggerFactory.getLogger("");
 
 		public void logDebug(String logging) {
 			LOGGER.debug("\u001B[92m" + logging + "\u001B[0m");

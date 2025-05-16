@@ -1,30 +1,33 @@
 Manifest-Version: 1.0
 Main-Class: com.testdatagen.TestdataGenApplication
-Class-Path: springdoc-openapi-starter-webmvc-ui-2.6.0.jar tomcat-embed-w
- ebsocket-10.1.39.jar attoparser-2.0.7.RELEASE.jar log4j-api-2.24.3.jar 
- jakarta.annotation-api-2.1.1.jar spring-web-6.2.5.jar swagger-core-jaka
- rta-2.2.22.jar spring-boot-starter-logging-3.4.4.jar spring-boot-starte
- r-tomcat-3.4.4.jar httpclient-4.5.14.jar jackson-core-2.18.3.jar jna-5.
- 3.1.jar spring-boot-starter-json-3.4.4.jar jackson-databind-2.18.3.jar 
- javafaker-1.0.2.jar swagger-models-jakarta-2.2.22.jar apm-agent-attach-
- 1.52.0.jar snakeyaml-1.23-android.jar springdoc-openapi-starter-webmvc-
- api-2.6.0.jar logback-classic-1.5.18.jar slf4j-api-2.0.17.jar commons-l
- ang3-3.17.0.jar jakarta.validation-api-3.0.2.jar commons-logging-1.2.ja
- r spring-boot-starter-thymeleaf-3.4.4.jar spring-core-6.2.5.jar tomcat-
- embed-core-10.1.39.jar micrometer-commons-1.14.5.jar error_prone_annota
- tions-2.36.0.jar commons-io-2.18.0.jar spring-beans-6.2.5.jar jakarta.a
- ctivation-api-2.1.3.jar thymeleaf-3.1.3.RELEASE.jar commons-codec-1.17.
- 2.jar spring-context-6.2.5.jar jackson-module-parameter-names-2.18.3.ja
- r spring-aop-6.2.5.jar swagger-ui-5.17.14.jar jackson-dataformat-yaml-2
- .18.3.jar gson-2.12.1.jar log4j-to-slf4j-2.24.3.jar jakarta.xml.bind-ap
- i-4.0.2.jar spring-jcl-6.2.5.jar swagger-annotations-jakarta-2.2.22.jar
-  spring-boot-starter-web-3.4.4.jar micrometer-observation-1.14.5.jar sp
- ring-boot-starter-3.4.4.jar spring-boot-3.4.4.jar spring-expression-6.2
- .5.jar springdoc-openapi-starter-common-2.6.0.jar json-20250107.jar tom
- cat-embed-el-10.1.39.jar spring-webmvc-6.2.5.jar generex-1.0.2.jar snak
- eyaml-2.4.jar log4j-core-2.20.0.jar logback-core-1.5.18.jar thymeleaf-s
- pring6-3.1.3.RELEASE.jar jna-platform-5.3.1.jar jackson-datatype-jdk8-2
- .18.3.jar jackson-annotations-2.18.3.jar unbescape-1.1.6.RELEASE.jar ja
- ckson-datatype-jsr310-2.15.2.jar httpcore-4.4.16.jar jul-to-slf4j-2.0.1
- 7.jar spring-boot-autoconfigure-3.4.4.jar automaton-1.11-8.jar
+Class-Path: tomcat-embed-core-10.1.39.jar unbescape-1.1.6.RELEASE.jar er
+ ror_prone_annotations-2.36.0.jar jakarta.xml.bind-api-4.0.2.jar microme
+ ter-commons-1.14.5.jar thymeleaf-spring6-3.1.3.RELEASE.jar snakeyaml-2.
+ 4.jar spring-boot-starter-web-3.4.4.jar spring-beans-6.2.5.jar spring-a
+ op-6.2.5.jar spring-boot-autoconfigure-3.4.4.jar spring-boot-starter-to
+ mcat-3.4.4.jar oraclepki-23.5.0.24.07.jar commons-lang3-3.17.0.jar ucp-
+ 23.5.0.24.07.jar jackson-datatype-jdk8-2.18.3.jar tomcat-embed-websocke
+ t-10.1.39.jar springdoc-openapi-starter-webmvc-api-2.6.0.jar httpclient
+ -4.5.14.jar generex-1.0.2.jar spring-boot-starter-json-3.4.4.jar spring
+ doc-openapi-starter-common-2.6.0.jar spring-boot-starter-3.4.4.jar thym
+ eleaf-3.1.3.RELEASE.jar logback-core-1.5.18.jar log4j-api-2.24.3.jar sw
+ agger-ui-5.17.14.jar commons-io-2.18.0.jar simplefan-23.5.0.24.07.jar s
+ pring-boot-starter-thymeleaf-3.4.4.jar log4j-core-2.20.0.jar spring-jcl
+ -6.2.5.jar jackson-core-2.18.3.jar springdoc-openapi-starter-webmvc-ui-
+ 2.6.0.jar log4j-to-slf4j-2.24.3.jar spring-expression-6.2.5.jar spring-
+ webmvc-6.2.5.jar ojdbc8-19.3.0.0.jar jna-platform-5.3.1.jar jakarta.val
+ idation-api-3.0.2.jar swagger-core-jakarta-2.2.22.jar jul-to-slf4j-2.0.
+ 17.jar automaton-1.11-8.jar ons-23.5.0.24.07.jar tomcat-embed-el-10.1.3
+ 9.jar micrometer-observation-1.14.5.jar httpcore-4.4.16.jar spring-boot
+ -3.4.4.jar commons-logging-1.2.jar gson-2.12.1.jar jackson-annotations-
+ 2.18.3.jar jackson-datatype-jsr310-2.15.2.jar jna-5.3.1.jar osdt_cert-1
+ 9.3.0.0.jar json-20250107.jar jakarta.activation-api-2.1.3.jar apm-agen
+ t-attach-1.52.0.jar spring-context-6.2.5.jar jackson-databind-2.18.3.ja
+ r osdt_core-19.3.0.0.jar spring-boot-starter-logging-3.4.4.jar logback-
+ classic-1.5.18.jar commons-codec-1.17.2.jar snakeyaml-1.23-android.jar 
+ swagger-models-jakarta-2.2.22.jar slf4j-api-2.0.17.jar attoparser-2.0.7
+ .RELEASE.jar javafaker-1.0.2.jar jakarta.annotation-api-2.1.1.jar jacks
+ on-module-parameter-names-2.18.3.jar spring-web-6.2.5.jar spring-core-6
+ .2.5.jar swagger-annotations-jakarta-2.2.22.jar jackson-dataformat-yaml
+ -2.18.3.jar
 
