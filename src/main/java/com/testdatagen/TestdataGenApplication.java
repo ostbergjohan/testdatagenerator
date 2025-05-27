@@ -312,7 +312,7 @@ public class TestdataGenApplication {
 						+ faker.phoneNumber().phoneNumber().replace("-", "") +"\",\"mobil\":\""
 						+ faker.phoneNumber().cellPhone().replace("-", "") + "\",\"jobPosition\":\""
 						+ faker.job().position()  + "\",\"jobTitel\":\""
-						+ faker.job().title() +"\",\"email\":\""+ mail  + "," + "\",\"kommun\":\"" +arrOfStr[2] +"\"}";
+						+ faker.job().title() +"\",\"email\":\""+ mail  + "\",\"kommun\":\"" +arrOfStr[2] +"\"}";
 			}
 			else {
 				i--;
