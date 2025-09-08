@@ -137,7 +137,8 @@ public class TestdataGenApplication {
 
 		try {
 			Connection connection = DriverManager.getConnection(jdbcUrl, username, password);
-			String sql = "SELECT PERSONNUMMER, MILJO, SOKANDEID, GUID, INFO, TIMESTAMP FROM SYNTETISKTDATA WHERE MILJO = ?";
+            String sql = "SELECT PERSONNUMMER, MILJO, SOKANDEID, GUID, INFO, TIMESTAMP " +
+                    "FROM SYNTETISKTDATA WHERE MILJO = ? ORDER BY TIMESTAMP DESC";
 			PreparedStatement stmt = connection.prepareStatement(sql);
 			stmt.setString(1, miljo);
 
