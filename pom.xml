@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>se.af.prestanda</groupId>
-    <artifactId>neoloadcompare</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
-    <name>neoloadcompare</name>
-    <description>spring4</description>
+    <groupId>com.testdatagen</groupId>
+    <artifactId>testdatagen</artifactId>
+    <version>2.0.0</version>
+    <name>testdatagen</name>
+    <description>Test Data Generator - API for generating Swedish test data with multithreaded processing</description>
 
     <properties>
         <java.version>21</java.version>
@@ -122,6 +122,12 @@
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>${commons-io.version}</version>
+        </dependency>
+        <!-- ADDED: Missing commons-lang3 dependency for RandomStringUtils -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.17.0</version>
         </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
